@@ -1,0 +1,201 @@
+{
+  "name": "Gmail Support Bot Automation",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "c5f3e9ce-7b4f-4c23-8a3e-1234567890",
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "message",
+        "operation": "getAll",
+        "q": "is:unread",
+        "format": "full"
+      },
+      "id": "gmail-node-1234",
+      "name": "Gmail - Get Unread",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5000/webhook/email",
+        "method": "POST",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "subject",
+              "value": "={{$json[\"subject\"]}}"
+            },
+            {
+              "name": "body",
+              "value": "={{$json[\"snippet\"]}}"
+            },
+            {
+              "name": "from",
+              "value": "={{$json[\"from\"]}}"
+            },
+            {
+              "name": "date",
+              "value": "={{$json[\"internalDate\"]}}"
+            }
+          ]
+        },
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "id": "http-webhook-1234",
+      "name": "Send to AI Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{$json[\"data\"][\"analysis\"][\"priority\"]}}",
+              "rightValue": "critical",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "condition-2",
+              "leftValue": "={{$json[\"data\"][\"analysis\"][\"priority\"]}}",
+              "rightValue": "high",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "combineOperation": "any"
+      },
+      "id": "if-node-1234",
+      "name": "Check Priority",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "channel": "#support-alerts",
+        "text": "🚨 *High Priority Email*\n\nSubject: {{$json[\"data\"][\"original\"][\"subject\"]}}\nCategory: {{$json[\"data\"][\"analysis\"][\"category\"]}}\nPriority: {{$json[\"data\"][\"analysis\"][\"priority\"]}}\nSentiment: {{$json[\"data\"][\"analysis\"][\"sentiment\"]}}\n\nSummary: {{$json[\"data\"][\"analysis\"][\"summary\"]}}\n\nSuggested Response:\n{{$json[\"data\"][\"analysis\"][\"suggested_response\"]}}",
+        "authentication": "oAuth2"
+      },
+      "id": "slack-node-1234",
+      "name": "Send to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "database",
+        "operation": "create",
+        "databaseId": "YOUR_NOTION_DB_ID",
+        "title": "={{$json[\"data\"][\"original\"][\"subject\"]}}",
+        "properties": {
+          "property": [
+            {
+              "key": "Category",
+              "value": "={{$json[\"data\"][\"analysis\"][\"category\"]}}"
+            },
+            {
+              "key": "Priority",
+              "value": "={{$json[\"data\"][\"analysis\"][\"priority\"]}}"
+            },
+            {
+              "key": "Status",
+              "value": "Open"
+            }
+          ]
+        }
+      },
+      "id": "notion-node-1234",
+      "name": "Add to Notion",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [1050, 400]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Get Unread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - Get Unread": {
+      "main": [
+        [
+          {
+            "node": "Send to AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Check Priority",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Priority": {
+      "main": [
+        [
+          {
+            "node": "Send to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add to Notion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
